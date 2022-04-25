@@ -374,3 +374,6 @@ testeth
 node_modules
 bin_output
 logs
+
+# starknet
+starknet-artifacts
