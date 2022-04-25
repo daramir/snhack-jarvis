@@ -94,7 +94,8 @@ contract YieldBridge is Ownable {
 
         USDC.approve(address(aave), type(uint256).max);
         depositAave(address(token), amount);
-        
+        depositL2(msg.sender, amount);
+
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
         bridgerInfo[msg.sender].bridgedTokens.push(amount);
@@ -150,7 +151,6 @@ contract YieldBridge is Ownable {
         // Update the L1 balance.
         withdrawToken(aaveToken); //might need to input user rather than rely on msg.sender
     }
-
 
     // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
     function withdrawToken(address token, address aaveToken) external {
