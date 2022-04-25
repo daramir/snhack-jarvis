@@ -29,6 +29,12 @@ yarn install
 yarn compile:starknet
 ```
 ### deploy
+
+#### your accounts
+```
+npx hardhat starknet-deploy-account --wallet MyWallet --starknet-network testnet
+```
+#### the contracts
 ```
 yarn deploy:starknet:testnet --starknet-network testnet --gateway-url "https://alpha4.starknet.io"
 ```

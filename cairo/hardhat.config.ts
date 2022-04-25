@@ -51,6 +51,17 @@ const config = {
       ]
     },
   },
+  starknet: {
+    // The default in this version of the plugin
+    dockerizedVersion: "0.8.1-arm", // append "-arm" if running on ARM architecture (e.g. M1)
+    wallets: {
+      MyWallet: {
+        accountName: "OpenZeppelin",
+        modulePath: "starkware.starknet.wallets.open_zeppelin.OpenZeppelinAccount",
+        accountPath: "~/.starknet_accounts"
+      },
+    }
+  },
   namedAccounts: {
     deployer: 0,
   },
