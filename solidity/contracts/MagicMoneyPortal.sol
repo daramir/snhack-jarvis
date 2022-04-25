@@ -36,7 +36,7 @@ interface IStarknetCore {
         returns (bytes32);
 }
 
-contract YieldBridge is Ownable {
+contract MagicMoneyPortal is Ownable {
     using SafeERC20 for IERC20;
 
     IStarknetCore public starknetCore;
@@ -59,8 +59,8 @@ contract YieldBridge is Ownable {
     uint256 constant MESSAGE_WITHDRAW = 0;
     uint256 constant l2ContractAddress = 0; //###STARKNETADDRESS###
 
-    constructor(IStarknetCore starknetCore_) {
-        starknetCore = starknetCore_;
+    constructor() {
+        starknetCore = addrress(0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4);
         USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         aUSDC = IERC20(0xBcca60bB61934080951369a648Fb03DF4F96263C);
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);

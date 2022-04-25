@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "ethers": "^5.6.4",
+    "hardhat": "^2.9.3"
+  }
+}
