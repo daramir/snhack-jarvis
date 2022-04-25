@@ -36,7 +36,7 @@ interface IStarknetCore {
         returns (bytes32);
 }
 
-abstract contract YieldBridge is IAaveLending, Ownable {
+contract YieldBridge is Ownable {
     using SafeERC20 for IERC20;
 
     IStarknetCore public starknetCore;
@@ -66,16 +66,19 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
     }
 
-    function viewUserDeposit(address user) public view returns (address[] memory, uint256[] memory) {
+    function viewUsersDeposit(address user) public view returns (address[] memory, uint256[] memory) {
         return (bridgerInfo[user].tokenAddress, bridgerInfo[user].bridgedTokens);
     }
 
+    // break when multiple users deposit
     function getInterest(address user) public view returns (uint256) {
-        uint256 depositAmount = bridgerInfo[user].bridgedTokens;
+        uint256 depositAmount = bridgerInfo[user].bridgedTokens[0];
         uint256 shareOfDeposits = (depositAmount / totalBridgedTokens) * 100;
         uint256 totalATokens = aUSDC.balanceOf(address(this));
-        uint256 withdrawAmount = (totalATokens / 100) * shareOfDeposits;
-        return withdrawAmount;
+        uint256 totalWithdrawable = (totalATokens / 100) * shareOfDeposits;
+        uint256 interestEarned = totalWithdrawable - depositAmount;
+
+        return interestEarned;
     }
 
     function viewTotalATokens(address token) public view returns (uint256) {
@@ -89,14 +92,16 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
         USDC.safeTransferFrom(msg.sender, address(this), amount);
 
+        USDC.approve(address(aave), type(uint256).max);
         depositAave(address(token), amount);
-        depositL2(msg.sender, amount);
-
+        
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
         bridgerInfo[msg.sender].bridgedTokens.push(amount);
         totalBridgers++;
-        totalBridgedTokens + (amount);
+        totalBridgedTokens+=amount;
+
+        // SEND INFO TO L1<>L2 BRIDGE
     }
 
     // Deposit token to Aave
@@ -104,7 +109,7 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         aave.deposit(
             token,
             amount,
-            msg.sender,
+            address(this),
             0
         );
     }
@@ -146,26 +151,27 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         withdrawToken(aaveToken); //might need to input user rather than rely on msg.sender
     }
 
+
     // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
-    function withdrawToken(address aaveToken) external {
-        uint256 userDeposit = bridgerInfo[msg.sender].bridgedToken;
+    function withdrawToken(address token, address aaveToken) external {
+        uint256 userDeposit = bridgerInfo[msg.sender].bridgedTokens[0];
         uint256 totalWithdraw = (userDeposit + getInterest(msg.sender));
 
-        // Withdraws the aToken from Aave
-        withdrawAave(aaveToken, amount);
+        // Withdraws the aToken from Aave, converting to token
+        withdrawAave(token, totalWithdraw);
 
-        // Sends the user the aToken
-        IERC20(aaveToken).safeTransferFrom(address(this), msg.sender, amount);
+        // Sends the user the token
+        IERC20(token).transfer(msg.sender, totalWithdraw);
 
         // Removes the user's bridging information
         uint256 index = getIndexOf(
-            aaveToken,
+            token,
             bridgerInfo[msg.sender].tokenAddress
         );
         removeAddr(index, bridgerInfo[msg.sender].tokenAddress);
         removeUint(index, bridgerInfo[msg.sender].bridgedTokens);
         totalBridgers--;
-        totalBridgedTokens - userDeposit; 
+        totalBridgedTokens-=userDeposit; 
     }
 
     // Withdraws users tokens from Aave
@@ -173,7 +179,7 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         aave.withdraw(
             aaveToken,
             amount,
-            msg.sender
+            address(this)
         );
     }
 
@@ -210,9 +216,9 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
     // OWNER FUNCTIONS
     // Allows Owner to add new tokens for whitelisting (MUST BE IN USE ON AAVE)
-    function enableToken(IERC20 token) external onlyOwner {
-        allowedToken[token] = true;
-    }
+    // function enableToken(IERC20 token) external onlyOwner {
+    //     allowedToken[token] = true;
+    // }
 
 }
 
@@ -220,6 +226,7 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 // Additions
 
 // enter StarknetCore contract without constructor input
+// input to Aave directly from msg.sender instead of depositing through contract
 // track users interest earned at each time someone stakes/withdraws
 // check enableTokens for tokens allowed on Aave
 // add refereral code for Aave
