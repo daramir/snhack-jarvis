@@ -44,13 +44,9 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
     function getInterest(address user) public view returns (uint256) {
         uint256 depositAmount = bridgerInfo[user].bridgedTokens;
-
-        uint256 shareOfDeposits = totalBridgedTokens / depositAmount;
-
+        uint256 shareOfDeposits = (depositAmount / totalBridgedTokens) * 100;
         uint256 totalATokens = aUSDC.balanceOf(address(this));
-
-        uint256 withdrawAmount = totalATokens / shareOfDeposits;
-
+        uint256 withdrawAmount = (totalATokens / 100) * shareOfDeposits;
         return withdrawAmount;
     }
 
@@ -159,12 +155,8 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
 // Additions
 
-// view functions
-    // deposit amount
-    // interest earned
-    // total amount deposited
+// track users interest earned at each time someone stakes/withdraws
 // check enableTokens for tokens allowed on Aave
-
 // add refereral code for Aave
 // withdraw specific amount of tokens
-// track users interest earned at each time someone stakes/withdraws
+// owner function to add/remove allowed tokens on the bridge
