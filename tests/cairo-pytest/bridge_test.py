@@ -1,3 +1,4 @@
+# Imported from Starkgate
 import asyncio
 import copy
 import random
