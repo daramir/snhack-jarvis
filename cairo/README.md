@@ -30,5 +30,5 @@ yarn compile:starknet
 ```
 ### deploy
 ```
-yarn deploy:starknet:testnet ----gateway-url "https://alpha4.starknet.io"
+yarn deploy:starknet:testnet --starknet-network testnet --gateway-url "https://alpha4.starknet.io"
 ```
