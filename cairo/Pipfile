@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+cairo-nile = "*"
+fastecdsa = "==1.7.5"
+openzeppelin-cairo-contracts = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
