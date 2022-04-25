@@ -4,9 +4,11 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.math import assert_lt_felt, assert_not_zero
 from starkware.cairo.common.uint256 import Uint256
-from starkware.starknet.apps.starkgate.cairo.mintable_token_interface import IMintableToken
 from starkware.starknet.common.messages import send_message_to_l1
 from starkware.starknet.common.syscalls import get_caller_address
+
+# Own contracts
+from contracts.mintable_token_interface import IMintableToken
 
 const WITHDRAW_MESSAGE = 0
 const ETH_ADDRESS_BOUND = 2 ** 160

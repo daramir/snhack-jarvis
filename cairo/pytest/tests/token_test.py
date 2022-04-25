@@ -7,7 +7,8 @@ from typing import Callable
 import pytest
 
 from starkware.starknet.apps.starkgate.cairo.contracts import erc20_contract_def
-from starkware.starknet.apps.starkgate.conftest import str_to_felt
+# from starkware.starknet.apps.starkgate.conftest import str_to_felt
+from utils import str_to_felt
 from starkware.starknet.testing.contract import StarknetContract
 from starkware.starknet.testing.starknet import Starknet
 from starkware.starkware_utils.error_handling import StarkException
