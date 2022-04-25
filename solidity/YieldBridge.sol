@@ -14,9 +14,32 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IAaveLending.sol";
 
+interface IStarknetCore {
+    /**
+      Sends a message to an L2 contract.
+
+      Returns the hash of the message.
+    */
+    function sendMessageToL2(
+        uint256 to_address,
+        uint256 selector,
+        uint256[] calldata payload
+    ) external returns (bytes32);
+
+    /**
+      Consumes a message that was sent from an L2 contract.
+
+      Returns the hash of the message.
+    */
+    function consumeMessageFromL2(uint256 fromAddress, uint256[] calldata payload)
+        external
+        returns (bytes32);
+}
+
 abstract contract YieldBridge is IAaveLending, Ownable {
     using SafeERC20 for IERC20;
 
+    IStarknetCore public starknetCore;
     IAaveLending public aave;
     IERC20 public USDC;
     IERC20 public aUSDC;
@@ -28,11 +51,16 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
     mapping(address => UserStake) private bridgerInfo;
     mapping(IERC20 => bool) private allowedToken;
-
     uint256 public totalBridgedTokens;
     uint256 public totalBridgers;
 
-    constructor() {
+    // The selector of the "deposit" l1_handler.
+    uint256 constant DEPOSIT_SELECTOR = 352040181584456735608515580760888541466059565068553383579463728554843487745;
+    uint256 constant MESSAGE_WITHDRAW = 0;
+    uint256 constant l2ContractAddress = 0; //###STARKNETADDRESS###
+
+    constructor(IStarknetCore starknetCore_) {
+        starknetCore = starknetCore_;
         USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         aUSDC = IERC20(0xBcca60bB61934080951369a648Fb03DF4F96263C);
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
@@ -62,14 +90,13 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         USDC.safeTransferFrom(msg.sender, address(this), amount);
 
         depositAave(address(token), amount);
-        
+        depositL2(msg.sender, amount);
+
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
         bridgerInfo[msg.sender].bridgedTokens.push(amount);
         totalBridgers++;
         totalBridgedTokens + (amount);
-
-        // SEND INFO TO L1<>L2 BRIDGE
     }
 
     // Deposit token to Aave
@@ -80,6 +107,43 @@ abstract contract YieldBridge is IAaveLending, Ownable {
             msg.sender,
             0
         );
+    }
+
+    function depositL2(
+        uint256 user,
+        uint256 amount
+    ) external {
+        require(amount < 2**64, "Invalid amount.");
+        require(amount <= userBalances[user], "The user's balance is not large enough.");
+
+        // Update the L1 balance.
+        userBalances[user] -= amount;
+
+        // Construct the deposit message's payload.
+        uint256[] memory payload = new uint256[](2);
+        payload[0] = user;
+        payload[1] = amount;
+
+        // Send the message to the StarkNet core contract.
+        starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
+    }
+
+    function withdrawL1(
+        uint256 user,
+        uint256 amount
+    ) external {
+        // Construct the withdrawal message's payload.
+        uint256[] memory payload = new uint256[](3);
+        payload[0] = MESSAGE_WITHDRAW;
+        payload[1] = user;
+        payload[2] = amount;
+
+        // Consume the message from the StarkNet core contract.
+        // This will revert the (Ethereum) transaction if the message does not exist.
+        starknetCore.consumeMessageFromL2(l2ContractAddress, payload);
+
+        // Update the L1 balance.
+        withdrawToken(aaveToken); //might need to input user rather than rely on msg.sender
     }
 
     // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
@@ -155,6 +219,7 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 
 // Additions
 
+// enter StarknetCore contract without constructor input
 // track users interest earned at each time someone stakes/withdraws
 // check enableTokens for tokens allowed on Aave
 // add refereral code for Aave
