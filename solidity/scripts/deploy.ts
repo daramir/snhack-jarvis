@@ -14,12 +14,13 @@ async function main() {
   // await hre.run('compile');
 
   const MagicMoneyPortal = await ethers.getContractFactory("MagicMoneyPortal");
-  const magicmoneyportal = await MagicMoneyPortal.deploy("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+  const magicmoneyportal = await MagicMoneyPortal.deploy();
   console.log("Magic Money Portal deployed to:", magicmoneyportal.address);
 
   // We send USDC and ETH to deployer for testing
   const USDC = await ethers.getContractFactory("USDC");
   const usdc = await USDC.attach("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+  console.log("Test USDC deployed to:", usdc.address);
 
   let signers = await ethers.getSigners()
   await signers[0].sendTransaction({
@@ -27,6 +28,7 @@ async function main() {
     value: ethers.utils.parseEther("4")
   })
   console.log("Ether sent to Deployer");
+
   await usdc.connect(await impersonate("0x55FE002aefF02F77364de339a1292923A15844B8"))
   .transfer("0x54CF8930796e1e0c7366c6F04D1Ea6Ad6FA5B708", ethers.utils.parseUnits("10000000", 6));
   console.log("USDC sent to Deployer");
