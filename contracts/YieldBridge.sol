@@ -27,13 +27,35 @@ abstract contract YieldBridge is IAaveLending, Ownable {
     }
 
     mapping(address => UserStake) private bridgerInfo;
-    mapping(address => bool) private bridgerList;
     mapping(IERC20 => bool) private allowedToken;
+
+    uint256 public totalBridgedTokens;
+    uint256 public totalBridgers;
 
     constructor() {
         USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         aUSDC = IERC20(0xBcca60bB61934080951369a648Fb03DF4F96263C);
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    }
+
+    function viewUserDeposit(address user) public view returns (address[] memory, uint256[] memory) {
+        return (bridgerInfo[user].tokenAddress, bridgerInfo[user].bridgedTokens);
+    }
+
+    function getInterest(address user) public view returns (uint256) {
+        uint256 depositAmount = bridgerInfo[user].bridgedTokens;
+
+        uint256 shareOfDeposits = totalBridgedTokens / depositAmount;
+
+        uint256 totalATokens = aUSDC.balanceOf(address(this));
+
+        uint256 withdrawAmount = totalATokens / shareOfDeposits;
+
+        return withdrawAmount;
+    }
+
+    function viewTotalATokens(address token) public view returns (uint256) {
+        return IERC20(token).balanceOf(address(this));
     }
 
     // Transfers token to Aave and sends message to the L1<>L2 bridge
@@ -48,6 +70,8 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
         bridgerInfo[msg.sender].bridgedTokens.push(amount);
+        totalBridgers++;
+        totalBridgedTokens + (amount);
 
         // SEND INFO TO L1<>L2 BRIDGE
     }
@@ -63,7 +87,9 @@ abstract contract YieldBridge is IAaveLending, Ownable {
     }
 
     // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
-    function withdrawToken(address aaveToken, uint256 amount) external {
+    function withdrawToken(address aaveToken) external {
+        uint256 userDeposit = bridgerInfo[msg.sender].bridgedToken;
+        uint256 totalWithdraw = (userDeposit + getInterest(msg.sender));
 
         // Withdraws the aToken from Aave
         withdrawAave(aaveToken, amount);
@@ -78,6 +104,8 @@ abstract contract YieldBridge is IAaveLending, Ownable {
         );
         removeAddr(index, bridgerInfo[msg.sender].tokenAddress);
         removeUint(index, bridgerInfo[msg.sender].bridgedTokens);
+        totalBridgers--;
+        totalBridgedTokens - userDeposit; 
     }
 
     // Withdraws users tokens from Aave
@@ -138,4 +166,5 @@ abstract contract YieldBridge is IAaveLending, Ownable {
 // check enableTokens for tokens allowed on Aave
 
 // add refereral code for Aave
-// withdraw all: pull aaveToken + amount from staked amount
+// withdraw specific amount of tokens
+// track users interest earned at each time someone stakes/withdraws
