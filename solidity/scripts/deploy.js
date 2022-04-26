@@ -35,13 +35,13 @@ async function main() {
 
   let signers = await ethers.getSigners()
   await signers[0].sendTransaction({
-    to: "0x54CF8930796e1e0c7366c6F04D1Ea6Ad6FA5B708",
+    to: "0x3369b322cabC2edBbA1B910CD4eca1915c456715",
     value: ethers.utils.parseEther("4")
   })
   console.log("Ether sent to Deployer");
 
   await usdc.connect(await impersonate("0x55FE002aefF02F77364de339a1292923A15844B8"))
-  .transfer("0x54CF8930796e1e0c7366c6F04D1Ea6Ad6FA5B708", ethers.utils.parseUnits("10000000", 6));
+  .transfer("0x3369b322cabC2edBbA1B910CD4eca1915c456715", ethers.utils.parseUnits("10000000", 6));
   console.log("USDC sent to Deployer");
   
 
