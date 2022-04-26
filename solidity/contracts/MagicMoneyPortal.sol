@@ -1,14 +1,22 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.2;
 
-	// - User deposits 100 USDC into our bridge contract
-	// - Bridge contract deposits 100 USDC into Aave and receives 100 aUSDC
-	// - Contract sends a message through the L1<>L2 bridge with information about token deposited + amount
-	// 	○ Require that only deposit when gas efficient
-	// - On receiving message from L2<>L1 bridge about token withdrawing + amount, withdraw amount
-	// 	○ Withdraw must calculate the interest earned on their 100 aUSDC
-	// 	○ Exchange amount + interest from Aaves aUSDC to USDC
-	// 	○ Return Total USDC back to user
+    /*
+    OVERVIEW
+        Magic Money Portal is a bridge between Ethereum <-> StarkNet that allows
+        users to earn yield on their deposited tokens while allowing full use of
+
+    EXAMPLE
+	- User deposits 100 USDC into our bridge contract
+	- Bridge contract deposits 100 USDC into Aave and receives 100 aUSDC
+	- Contract sends a message through the L1<>L2 bridge with information about token deposited + amount
+		○ Require that only deposit when gas efficient
+	- On receiving message from L2<>L1 bridge about token withdrawing + amount, withdraw amount
+		○ Withdraw must calculate the interest earned on their 100 aUSDC
+		○ Exchange amount + interest from Aaves aUSDC to USDC
+		○ Return Total USDC back to user
+
+    */
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -101,8 +109,6 @@ contract MagicMoneyPortal is Ownable {
         bridgerInfo[msg.sender].bridgedTokens.push(amount);
         totalBridgers++;
         totalBridgedTokens+=amount;
-
-        // SEND INFO TO L1<>L2 BRIDGE
     }
 
     // Deposit token to Aave
@@ -227,7 +233,6 @@ contract MagicMoneyPortal is Ownable {
     }
 
 }
-
 
 /*
  Additions/Improvements:
