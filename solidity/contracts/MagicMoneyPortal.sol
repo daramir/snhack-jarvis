@@ -4,18 +4,21 @@ pragma solidity ^0.8.2;
     /*
     OVERVIEW
         Magic Money Portal is a bridge between Ethereum <-> StarkNet that allows
-        users to earn yield on their deposited tokens while allowing full use of
+        users to earn yield on their locked up tokens on Ethereum with Aave,
+        while being free to use their synthetic token on Starknet.
+        Through this users can be rewarded for bridging over to Starknet
+        while being able to utilise tokens on Starknet backed up by value.
 
     EXAMPLE
-	- User deposits 100 USDC into our bridge contract
-	- Bridge contract deposits 100 USDC into Aave and receives 100 aUSDC
-	- Contract sends a message through the L1<>L2 bridge with information about token deposited + amount
-		○ Require that only deposit when gas efficient
-	- On receiving message from L2<>L1 bridge about token withdrawing + amount, withdraw amount
-		○ Withdraw must calculate the interest earned on their 100 aUSDC
-		○ Exchange amount + interest from Aaves aUSDC to USDC
-		○ Return Total USDC back to user
-
+        - User deposits 100 USDC into the MagicMoneyPortal
+        - MagicMoneyPortal deposits 100 USDC into Aave and receives 100 aUSDC
+        - MagicMoneyPortal messages through the L1<>L2 message bridge with
+          info about token deposited + amount deposited
+        - Synthetic tokens are minted on StarkNet which users are free to use
+        - Users deposit synthetic tokens on StarkNet and send a message on the L2<>L1 bridge.
+        - On receiving message from L2<>L1 bridge about token withdrawing
+          and amount withdrawing, deposit the users aUSDC into Aave to receive USDC.
+          This is then returned to the user with their earned interest.
     */
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -53,19 +56,19 @@ contract MagicMoneyPortal is Ownable {
     IERC20 public aUSDC;
 
     struct UserStake {
-        address[] tokenAddress;
-        uint256[] bridgedTokens;
+        address[] tokenAddress;     // The address of the token bridged
+        uint256[] bridgedTokens;    // The amount of tokens bridged
     }
 
-    mapping(address => UserStake) private bridgerInfo;
-    mapping(IERC20 => bool) private allowedToken;
-    uint256 public totalBridgedTokens;
-    uint256 public totalBridgers;
+    mapping(address => UserStake) private bridgerInfo;  // info on account bridging
+    mapping(IERC20 => bool) private allowedToken;   // tokens permitted to bridge
+    uint256 public totalBridgedTokens;  // total # of tokens bridged
+    uint256 public totalBridgers;   // total # of addresses with bridged tokens
 
     // The selector of the "deposit" l1_handler.
     uint256 constant DEPOSIT_SELECTOR = 352040181584456735608515580760888541466059565068553383579463728554843487745;
     uint256 constant MESSAGE_WITHDRAW = 0;
-    uint256 constant l2ContractAddress = 0; //###STARKNETADDRESS###
+    uint256 public l2ContractAddress; //###STARKNETADDRESS###
 
     constructor() {
         starknetCore = IStarknetCore(0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4);
@@ -74,11 +77,20 @@ contract MagicMoneyPortal is Ownable {
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
     }
 
+    /**
+     * @notice Returns information on what tokens & how many a user has deposited
+     * 
+     * @param user The user to be checked for their deposits to the bridge
+    */
     function viewUsersDeposit(address user) public view returns (address[] memory, uint256[] memory) {
         return (bridgerInfo[user].tokenAddress, bridgerInfo[user].bridgedTokens);
     }
 
-    // break when multiple users deposit
+    /**
+     * @notice Returns the amount of interest a user has earned in token amount
+     * 
+     * @param user The user to be checked for their amount earned
+    */
     function getInterest(address user) public view returns (uint256) {
         uint256 depositAmount = bridgerInfo[user].bridgedTokens[0];
         uint256 shareOfDeposits = (depositAmount / totalBridgedTokens) * 100;
@@ -89,11 +101,23 @@ contract MagicMoneyPortal is Ownable {
         return interestEarned;
     }
 
+    /**
+     * @notice Returns the amount of tokens held on the contract
+     * 
+     * @param token The address of the token to check the amount of
+    */
     function viewTotalATokens(address token) public view returns (uint256) {
         return IERC20(token).balanceOf(address(this));
     }
 
-    // Transfers token to Aave and sends message to the L1<>L2 bridge
+    /**
+     * @notice User deposits tokens to the contract, which deposits into
+     *         Aave and sends a message on the L1<>L2 bridge to mint
+     *         synthetic tokens on StarkNet
+     * 
+     * @param IERC20 The address of the token to bridge
+     * @param amount The amount of tokens to bridge
+    */
     function bridgeToken(IERC20 token, uint256 amount) external {
         require(amount > 0, "Cannot stake 0 tokens");
         require(allowedToken[token] = true, "Must be depositing an allowed token");
@@ -111,7 +135,15 @@ contract MagicMoneyPortal is Ownable {
         totalBridgedTokens+=amount;
     }
 
-    // Deposit token to Aave
+    /**
+     * @dev aTokens = Aave Synthetic Tokens
+     * @notice The internal function that deposits tokens to Aave to get aTokens
+     * 
+     * @param token Address of token to deposit into Aave
+     * @param amount Number of tokens to deposit into Aave
+    */
+
+    // Deposit token to Aave and recevie aToken
     function depositAave(address token, uint256 amount) internal {
         aave.deposit(
             token,
@@ -121,6 +153,12 @@ contract MagicMoneyPortal is Ownable {
         );
     }
 
+    /**
+     * @notice Sends a message on the L1<>L2 bridge to message StarkNet
+     * 
+     * @param user The user that is bridging tokens
+     * @param amount The amount of tokens the user is bridging
+    */
     // function deposit(
     //     uint256 user,
     //     uint256 amount
@@ -137,6 +175,12 @@ contract MagicMoneyPortal is Ownable {
     //     starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
     // }
 
+    /**
+     * @notice Receives a message on the L2<>L1 bridge from StarkNet
+     * 
+     * @param user The user that is bridging tokens
+     * @param amount The amount of tokens the user is bridging
+    */
     // function withdraw(
     //     uint256 user,
     //     uint256 amount
@@ -155,7 +199,12 @@ contract MagicMoneyPortal is Ownable {
     //     withdrawToken(address(USDC), user);
     // }
 
-    // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
+    /**
+     * @notice Called to withdraw a users deposited tokens and distribute interest
+     * 
+     * @param token The address of the token the user is withdrawing
+     * @param user The address of the user who is withdrawing
+    */
     function withdrawToken(address token, address user) public {
         uint256 userDeposit = bridgerInfo[user].bridgedTokens[0];
         uint256 totalWithdraw = (userDeposit + getInterest(user));
@@ -177,7 +226,12 @@ contract MagicMoneyPortal is Ownable {
         totalBridgedTokens-=userDeposit; 
     }
 
-    // Withdraws users tokens from Aave
+    /**
+     * @notice Withdraws a deposited token from Aave with interest
+     * 
+     * @param token The token being withdrawn from Aave
+     * @param amount The amount of tokens being withdrawn from Aave
+    */
     function withdrawAave(address token, uint256 amount) internal {
         aave.withdraw(
             token,
@@ -217,19 +271,46 @@ contract MagicMoneyPortal is Ownable {
         array.pop();    
     }
 
-    // OWNER FUNCTIONS
-    // Allows Owner to add new tokens for depositing on bridge (MUST BE IN USE ON AAVE)
+    /**
+     * @dev Token must be enabled for depositing on Aave!
+     *
+     * @notice Enables a token to be deposited on the bridge
+     * 
+     * @param token The address of the token that is enabled
+    */
     function enableToken(IERC20 token) external onlyOwner {
         allowedToken[token] = true;
     }
 
-    // Allows Owner to remove tokens from deposting on bridge
+    /**
+     * @dev Should not need to be called if enableToken is used correctly
+     *
+     * @notice Disables a token from being deposited on the bridge
+     * 
+     * @param token The address of the token that is disabled
+    */
     function disableToken(IERC20 token) external onlyOwner {
         allowedToken[token] = false;
     }
 
+    /**
+     * @notice Changes the StarkNetCore contract address
+     * 
+     * @param newAddress The new StarkNetCore contract address
+    */
     function changeStarknetCore(IStarknetCore newAddress) external onlyOwner {
         starknetCore = newAddress;
+    }
+
+     /**
+     * @dev Must be set upon contract creation to connect bridge
+     *
+     * @notice Changes the L2 contract to communicate with on the L1<>L2 bridge
+     * 
+     * @param newAddress The new L2 address to communicate with
+    */
+    function changeL2ContractAddress(uint256 newAddress) external onlyOwner {
+        l2ContractAddress = newAddress;
     }
 
 }
@@ -240,7 +321,13 @@ contract MagicMoneyPortal is Ownable {
     - In `withdraw` function, feed through `amount` to called `withdrawToken` to take messaged amount out
     - Input to Aave directly from msg.sender instead of depositing through contract
     - Track users interest earned at each time someone stakes/withdraws to more accurately track interest
+    - Complete code for adding in multiple tokens for the bridge
+    - Reformat data structures for users deposits
+    - Fix bridgeToken using .push instead of checking for already filled token slots to update
     - Check enableTokens for tokens allowed on Aave
     - ?Add extra payload for L1<>L2 message indicating token to deposit/withdraw?
-
+    - Add events
+    - Fix getInterest breaking when multiple accounts deposit
+    - Struct for total number of users
+    - Rename `totalBridgers` to `totalDeposits`
 */
