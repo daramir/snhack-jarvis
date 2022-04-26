@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.2;
 
 	// - User deposits 100 USDC into our bridge contract
 	// - Bridge contract deposits 100 USDC into Aave and receives 100 aUSDC
@@ -12,7 +12,7 @@ pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/IAaveLending.sol";
+import "../interfaces/IAaveLending.sol";
 
 interface IStarknetCore {
     /**
@@ -60,7 +60,7 @@ contract MagicMoneyPortal is Ownable {
     uint256 constant l2ContractAddress = 0; //###STARKNETADDRESS###
 
     constructor() {
-        starknetCore = addrress(0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4);
+        starknetCore = IStarknetCore(0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4);
         USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
         aUSDC = IERC20(0xBcca60bB61934080951369a648Fb03DF4F96263C);
         aave = IAaveLending(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
@@ -94,7 +94,7 @@ contract MagicMoneyPortal is Ownable {
 
         USDC.approve(address(aave), type(uint256).max);
         depositAave(address(token), amount);
-        depositL2(msg.sender, amount);
+        //deposit(msg.sender, amount);
 
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
@@ -115,69 +115,66 @@ contract MagicMoneyPortal is Ownable {
         );
     }
 
-    function depositL2(
-        uint256 user,
-        uint256 amount
-    ) external {
-        require(amount < 2**64, "Invalid amount.");
-        require(amount <= userBalances[user], "The user's balance is not large enough.");
+    // function deposit(
+    //     uint256 user,
+    //     uint256 amount
+    // ) public {
+    //     require(amount < 2**64, "Invalid amount.");
+    //     require(amount <= bridgerInfo[user].bridgedTokens, "The user's balance is not large enough.");
 
-        // Update the L1 balance.
-        userBalances[user] -= amount;
+    //     // Construct the deposit message's payload.
+    //     uint256[] memory payload = new uint256[](2);
+    //     payload[0] = user;
+    //     payload[1] = amount;
 
-        // Construct the deposit message's payload.
-        uint256[] memory payload = new uint256[](2);
-        payload[0] = user;
-        payload[1] = amount;
+    //     // Send the message to the StarkNet core contract.
+    //     starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
+    // }
 
-        // Send the message to the StarkNet core contract.
-        starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
-    }
+    // function withdraw(
+    //     uint256 user,
+    //     uint256 amount
+    // ) external {
+    //     // Construct the withdrawal message's payload.
+    //     uint256[] memory payload = new uint256[](3);
+    //     payload[0] = MESSAGE_WITHDRAW;
+    //     payload[1] = user;
+    //     payload[2] = amount;
 
-    function withdrawL1(
-        uint256 user,
-        uint256 amount
-    ) external {
-        // Construct the withdrawal message's payload.
-        uint256[] memory payload = new uint256[](3);
-        payload[0] = MESSAGE_WITHDRAW;
-        payload[1] = user;
-        payload[2] = amount;
+    //     // Consume the message from the StarkNet core contract.
+    //     // This will revert the (Ethereum) transaction if the message does not exist.
+    //     starknetCore.consumeMessageFromL2(l2ContractAddress, payload);
 
-        // Consume the message from the StarkNet core contract.
-        // This will revert the (Ethereum) transaction if the message does not exist.
-        starknetCore.consumeMessageFromL2(l2ContractAddress, payload);
-
-        // Update the L1 balance.
-        withdrawToken(aaveToken); //might need to input user rather than rely on msg.sender
-    }
+    //     // Update the L1 balance.
+    //     withdrawToken(address(USDC), user);
+    // }
 
     // Called by L1<>L2 bridge, withdraws staked tokens + interest and returns to staker
-    function withdrawToken(address token, address aaveToken) external {
-        uint256 userDeposit = bridgerInfo[msg.sender].bridgedTokens[0];
-        uint256 totalWithdraw = (userDeposit + getInterest(msg.sender));
+    function withdrawToken(address token, address user) public {
+        uint256 userDeposit = bridgerInfo[user].bridgedTokens[0];
+        uint256 totalWithdraw = (userDeposit + getInterest(user));
 
         // Withdraws the aToken from Aave, converting to token
         withdrawAave(token, totalWithdraw);
 
         // Sends the user the token
-        IERC20(token).transfer(msg.sender, totalWithdraw);
+        IERC20(token).transfer(user, totalWithdraw);
 
         // Removes the user's bridging information
         uint256 index = getIndexOf(
             token,
-            bridgerInfo[msg.sender].tokenAddress
+            bridgerInfo[user].tokenAddress
         );
-        removeAddr(index, bridgerInfo[msg.sender].tokenAddress);
-        removeUint(index, bridgerInfo[msg.sender].bridgedTokens);
+        removeAddr(index, bridgerInfo[user].tokenAddress);
+        removeUint(index, bridgerInfo[user].bridgedTokens);
         totalBridgers--;
         totalBridgedTokens-=userDeposit; 
     }
 
     // Withdraws users tokens from Aave
-    function withdrawAave(address aaveToken, uint256 amount) internal {
+    function withdrawAave(address token, uint256 amount) internal {
         aave.withdraw(
-            aaveToken,
+            token,
             amount,
             address(this)
         );
@@ -215,20 +212,30 @@ contract MagicMoneyPortal is Ownable {
     }
 
     // OWNER FUNCTIONS
-    // Allows Owner to add new tokens for whitelisting (MUST BE IN USE ON AAVE)
-    // function enableToken(IERC20 token) external onlyOwner {
-    //     allowedToken[token] = true;
-    // }
+    // Allows Owner to add new tokens for depositing on bridge (MUST BE IN USE ON AAVE)
+    function enableToken(IERC20 token) external onlyOwner {
+        allowedToken[token] = true;
+    }
+
+    // Allows Owner to remove tokens from deposting on bridge
+    function disableToken(IERC20 token) external onlyOwner {
+        allowedToken[token] = false;
+    }
+
+    function changeStarknetCore(IStarknetCore newAddress) external onlyOwner {
+        starknetCore = newAddress;
+    }
 
 }
 
 
-// Additions
+/*
+ Additions/Improvements:
 
-// enter StarknetCore contract without constructor input
-// input to Aave directly from msg.sender instead of depositing through contract
-// track users interest earned at each time someone stakes/withdraws
-// check enableTokens for tokens allowed on Aave
-// add refereral code for Aave
-// withdraw specific amount of tokens
-// owner function to add/remove allowed tokens on the bridge
+    - In `withdraw` function, feed through `amount` to called `withdrawToken` to take messaged amount out
+    - Input to Aave directly from msg.sender instead of depositing through contract
+    - Track users interest earned at each time someone stakes/withdraws to more accurately track interest
+    - Check enableTokens for tokens allowed on Aave
+    - ?Add extra payload for L1<>L2 message indicating token to deposit/withdraw?
+
+*/

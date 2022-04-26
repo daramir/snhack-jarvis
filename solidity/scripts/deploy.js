@@ -3,7 +3,16 @@
 //
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
-import { ethers, network } from "hardhat";
+const {ethers} = require("hardhat");
+
+async function impersonate(address) {
+  await network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [address],
+  });
+  const newSigner = await ethers.provider.getSigner(address)
+  return newSigner
+}
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -11,7 +20,9 @@ async function main() {
   //
   // If this script is run directly using `node` you may want to call compile
   // manually to make sure everything is compiled
-  // await hre.run('compile');
+  // await run('compile');
+
+  // npx hardhat node --fork https://eth-mainnet.alchemyapi.io/v2/lQxSCXnw2TZnV9oRVM1QKR4crdhZvVEv
 
   const MagicMoneyPortal = await ethers.getContractFactory("MagicMoneyPortal");
   const magicmoneyportal = await MagicMoneyPortal.deploy();
@@ -32,16 +43,10 @@ async function main() {
   await usdc.connect(await impersonate("0x55FE002aefF02F77364de339a1292923A15844B8"))
   .transfer("0x54CF8930796e1e0c7366c6F04D1Ea6Ad6FA5B708", ethers.utils.parseUnits("10000000", 6));
   console.log("USDC sent to Deployer");
+  
+
 }
 
-async function impersonate(address: any) {
-  await network.provider.request({
-    method: "hardhat_impersonateAccount",
-    params: [address],
-  });
-  const newSigner = await ethers.getSigner(address)
-  return newSigner
-}
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
 main().catch((error) => {
