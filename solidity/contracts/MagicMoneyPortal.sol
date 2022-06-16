@@ -65,9 +65,10 @@ contract MagicMoneyPortal is Ownable {
     uint256 public totalBridgedTokens;  // total # of tokens bridged
     uint256 public totalBridgers;   // total # of addresses with bridged tokens
 
-    // The selector of the "deposit" l1_handler.
     uint256 constant DEPOSIT_SELECTOR = 352040181584456735608515580760888541466059565068553383579463728554843487745;
     uint256 constant MESSAGE_WITHDRAW = 0;
+    uint256 constant UINT256_PART_SIZE_BITS = 128;
+    uint256 constant UINT256_PART_SIZE = 2**UINT256_PART_SIZE_BITS;
     uint256 public l2ContractAddress; //###STARKNETADDRESS###
 
     constructor() {
@@ -126,7 +127,7 @@ contract MagicMoneyPortal is Ownable {
 
         USDC.approve(address(aave), type(uint256).max);
         depositAave(address(token), amount);
-        //deposit(msg.sender, amount);
+        sendMessage(msg.sender, amount, address(token));
 
         // Adds information for the bridger
         bridgerInfo[msg.sender].tokenAddress.push(address(token));
@@ -153,27 +154,51 @@ contract MagicMoneyPortal is Ownable {
         );
     }
 
+                // function sendMessage(uint256 amount, uint256 l2Recipient)
+                //     internal
+                //     l2TokenBridgeSet
+                //     isValidL2Address(l2Recipient)
+                // {
+                //     require(amount <= maxDeposit(), "TRANSFER_TO_STARKNET_AMOUNT_EXCEEDED");
+                //     emit LogDeposit(msg.sender, amount, l2Recipient);
+
+                //     uint256[] memory payload = new uint256[](3);
+                //     payload[0] = l2Recipient;
+                //     payload[1] = amount & (UINT256_PART_SIZE - 1);
+                //     payload[2] = amount >> UINT256_PART_SIZE_BITS;
+                //     messagingContract().sendMessageToL2(l2TokenBridge(), DEPOSIT_SELECTOR, payload);
+                // }
+
     /**
      * @notice Sends a message on the L1<>L2 bridge to message StarkNet
      * 
      * @param user The user that is bridging tokens
      * @param amount The amount of tokens the user is bridging
     */
-    // function deposit(
-    //     uint256 user,
-    //     uint256 amount
-    // ) public {
-    //     require(amount < 2**64, "Invalid amount.");
-    //     require(amount <= bridgerInfo[user].bridgedTokens, "The user's balance is not large enough.");
+    function sendMessage(
+        address user,
+        uint256 amount,
+        address token
+    ) internal {
+        require(amount < 2**64, "Invalid amount.");
+        require(amount <= bridgerInfo[user].bridgedTokens, "The user's balance is not large enough.");
 
-    //     // Construct the deposit message's payload.
-    //     uint256[] memory payload = new uint256[](2);
-    //     payload[0] = user;
-    //     payload[1] = amount;
+        // uint256 ul2ContractAddress = convert address l2ContractAddress to uint
+        // uint256 uuser = convert address user to uint
+        // uint256 utoken = convert address token to uint
 
-    //     // Send the message to the StarkNet core contract.
-    //     starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
-    // }
+        // Construct the deposit message's payload.
+        uint256[] memory payload = new uint256[](6);
+        payload[0] = ul2ContractAddress;
+        payload[1] = amount & (UINT256_PART_SIZE - 1);
+        payload[2] = amount >> UINT256_PART_SIZE_BITS;
+        payload[3] = uuser;
+        payload[4] = amount;
+        payload[5] = utoken;
+
+        // Send the message to the StarkNet core contract.
+        starknetCore.sendMessageToL2(l2ContractAddress, DEPOSIT_SELECTOR, payload);
+    }
 
     /**
      * @notice Receives a message on the L2<>L1 bridge from StarkNet
@@ -181,23 +206,26 @@ contract MagicMoneyPortal is Ownable {
      * @param user The user that is bridging tokens
      * @param amount The amount of tokens the user is bridging
     */
-    // function withdraw(
-    //     uint256 user,
-    //     uint256 amount
-    // ) external {
-    //     // Construct the withdrawal message's payload.
-    //     uint256[] memory payload = new uint256[](3);
-    //     payload[0] = MESSAGE_WITHDRAW;
-    //     payload[1] = user;
-    //     payload[2] = amount;
+    function withdraw(
+        uint256 user,
+        uint256 amount
+    ) external {
+        // Construct the withdrawal message's payload.
+        uint256[] memory payload = new uint256[](3);
+        payload[0] = MESSAGE_WITHDRAW;
+        payload[1] = user;
+        payload[2] = amount;
+        payload[3] = token;
 
-    //     // Consume the message from the StarkNet core contract.
-    //     // This will revert the (Ethereum) transaction if the message does not exist.
-    //     starknetCore.consumeMessageFromL2(l2ContractAddress, payload);
+        // Consume the message from the StarkNet core contract.
+        // This will revert the (Ethereum) transaction if the message does not exist.
+        starknetCore.consumeMessageFromL2(l2ContractAddress, payload);
 
-    //     // Update the L1 balance.
-    //     withdrawToken(address(USDC), user);
-    // }
+        //token -> convert to address
+
+        // Withdraws the token
+        withdrawToken(address(token), user);
+    }
 
     /**
      * @notice Called to withdraw a users deposited tokens and distribute interest
@@ -330,4 +358,5 @@ contract MagicMoneyPortal is Ownable {
     - Fix getInterest breaking when multiple accounts deposit
     - Struct for total number of users
     - Rename `totalBridgers` to `totalDeposits`
+    - Implement insuarance fee
 */
